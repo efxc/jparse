@@ -151,7 +151,10 @@ parse_json (parser_t *ctx, char *data)
   skip (ctx);
   
   if ((ctx->json = parse_value (ctx)) == NULL)
-    return NULL;
+    {
+      free (ctx->json);
+      return NULL;
+    }
 
   skip (ctx);
   return ctx->json;

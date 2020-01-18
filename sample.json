@@ -1,0 +1,14 @@
+{
+  "name": "test.json",
+  "type": "application/json",
+  "extensions": [
+    "js",
+    "json"
+  ],
+  "cool": false,
+  "free": true,
+  "authors": {
+    "efxc": "github/efxc",
+    "efecx": "github/efecx"
+  }
+}
