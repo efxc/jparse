@@ -50,5 +50,6 @@ struct array
 };
 
 json_t *json_decode (char *data);
+void json_free (json_t *json);
 
 #endif /* HAVE_JPARSER_H */

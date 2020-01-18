@@ -31,13 +31,68 @@ json_value_t *make_value (void);
 json_t *make_node (void);
 json_t *json_decode (char *data);
 json_array_t *make_array (void);
+void free_object (json_object_t *object);
+void free_array (json_array_t *array);
 
 json_t *
 json_decode (char *data)
 {
   parser_t *ctx = malloc (sizeof (parser_t));
   json_t *json = parse_json (ctx, data);
+  free (ctx);
   return json;
+}
+
+void
+json_free (json_t *json)
+{
+  if (json == NULL)
+    return;
+  json_object_t *object = NULL;
+  json_array_t *array = NULL;
+  switch (json->type)
+    {
+    case JSON_NULL:
+    case JSON_TRUE:
+    case JSON_FALSE:
+    case JSON_NUMBER:
+      break;
+    case JSON_STRING:
+      free (json->as.string);
+      break;
+    case JSON_OBJECT:
+      object = json->as.object;
+      free_object (object);
+      break;
+    case JSON_ARRAY:
+      array = json->as.array;
+      free_array (array);
+      break;
+    }
+  free (json);
+}
+
+void
+free_array (json_array_t *array)
+{
+  if (array != NULL)
+    {
+      free_array (array->next);
+      json_free (array->value);
+      free (array);
+    }
+}
+
+void
+free_object (json_object_t *object)
+{
+  if (object != NULL)
+    {
+      free_object (object->next);
+      json_free (object->value);
+      free (object->key);
+      free (object);
+    }
 }
 
 json_t *
