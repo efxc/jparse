@@ -38,20 +38,13 @@ json_decode (char *data)
   parser_t *ctx = malloc (sizeof (parser_t));
   json_t *json = parse_json (ctx, data);
   return json;
-p}
+}
 
 json_t *
 make_node (void)
 {
   json_t *node = malloc (sizeof (json_t));
   return node;
-}
-
-json_value_t *
-make_value (void)
-{
-  json_value_t *value = malloc (sizeof (json_value_t));
-  return value;
 }
 
 json_object_t *
@@ -102,25 +95,25 @@ parse_json (parser_t *ctx, char *data)
   ctx->json = make_node ();
   skip (ctx);
   
-  if ((ctx->json->value = parse_value (ctx)) == NULL)
+  if ((ctx->json = parse_value (ctx)) == NULL)
     return NULL;
 
   skip (ctx);
   return ctx->json;
 }
 
-json_value_t *
+json_t *
 parse_value (parser_t *ctx)
 {
   ctx->start = ctx->cursor;
   char c = advance (ctx);
-  json_value_t *value = make_value ();
+  json_t *value = make_node ();
 
   switch (c)
     {
     case '{':
       value->type = JSON_OBJECT;
-      value->as .object = parse_object (ctx);
+      value->as.object = parse_object (ctx);
       break;
     case '[':
       value->type = JSON_ARRAY;
@@ -176,13 +169,12 @@ parse_logic (parser_t *ctx)
   else if (strncmp (ctx->start, "null", 4) == 0)
     return JSON_NULL;
   else
-    abort ();
+    return JSON_ERROR;
 }
 
 json_array_t *
 parse_array (parser_t *ctx)
 {
-  skip (ctx);
   json_array_t *array = NULL;
 
   skip (ctx);
@@ -198,15 +190,22 @@ parse_members (parser_t *ctx)
 {
   json_array_t *arr = make_array ();
   json_array_t *curr = NULL;
-  json_value_t *memb = NULL;
+  json_t *memb = NULL;
+  
+  skip (ctx);
   if ((memb = parse_value (ctx)) == NULL)
-    return NULL;
+    {
+      json_array_t *error = make_array ();
+      error->value = make_node ();
+      error->value->type= JSON_ERROR;
+      return error;
+    }
+  skip (ctx);
   
   arr->value = memb;
   arr->next = NULL;
   curr = arr;
   
-  skip (ctx);
   while (peek (ctx) == ',')
     {
       advance (ctx);
@@ -217,7 +216,7 @@ parse_members (parser_t *ctx)
       curr->next = NULL; /* terminate linked list */
       skip (ctx);
     }
-  advance (ctx); /* trailing ']' */
+  skip (ctx);
   return arr;
 }      
 
@@ -225,11 +224,12 @@ json_object_t *
 parse_object (parser_t *ctx)
 {
   json_object_t *object = NULL;
+
+  skip (ctx);
+  object = parse_elements (ctx);
   skip (ctx);
 
-  object = parse_elements (ctx);
   /* trailing '}' */
-  skip (ctx);
   advance (ctx);
   return object;
 }
@@ -252,7 +252,7 @@ parse_string (parser_t *ctx)
 json_object_t *
 parse_element (parser_t *ctx)
 {
-  json_value_t *value = NULL;
+  json_t *value = NULL;
   json_object_t *object = make_object ();
   /* key */
   skip (ctx);
@@ -273,6 +273,7 @@ parse_element (parser_t *ctx)
   object->key = key;
   object->value = value;
 
+  skip (ctx);
   return object;
 }
 
@@ -281,7 +282,7 @@ parse_elements (parser_t *ctx)
 {
   json_object_t *object = NULL;
   json_object_t *current = NULL;
-  json_object_t *prev = NULL;
+  
   if ((object = parse_element (ctx)) == NULL)
     return NULL;
   
@@ -289,11 +290,11 @@ parse_elements (parser_t *ctx)
   current = object;
   while (peek (ctx) == ',')
     {
-      prev = current;
       advance (ctx); /* eat ',' */
       skip (ctx);
       current->next = parse_element (ctx);
       current = current->next;
+      current->next = NULL;
       skip (ctx);
     }
   return object;

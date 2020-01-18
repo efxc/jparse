@@ -6,7 +6,7 @@
 #include <string.h>
 
 typedef enum json_type json_type_t;
-typedef struct json json_t;
+typedef struct value json_t;
 typedef struct value json_value_t;
 typedef struct object json_object_t;
 typedef struct array json_array_t;
@@ -14,18 +14,15 @@ typedef struct array json_array_t;
 enum json_type
   {
    JSON_NULL = 0,
-   JSON_FALSE = JSON_NULL,
+   JSON_FALSE,
    JSON_TRUE,
    JSON_OBJECT,
    JSON_ARRAY,
    JSON_STRING,
-   JSON_NUMBER
-  };
+   JSON_NUMBER,
 
-struct json
-{
-  json_value_t *value;
-};
+   JSON_ERROR
+  };
 
 struct value
 {
@@ -42,13 +39,13 @@ struct value
 struct object
 {
   char *key;
-  json_value_t *value;
+  json_t *value;
   struct object *next;
 };
 
 struct array
 {
-  json_value_t *value;
+  json_t *value;
   struct array *next;
 };
 
