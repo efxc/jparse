@@ -1,4 +1,4 @@
-#include "jp.h"
+#include "jparse.h"
 #define json_is_number(c)			\
   ((c) <= '9' && (c) >= '0')
 #define json_is_alpha(c)			\
@@ -38,7 +38,7 @@ json_decode (char *data)
   parser_t *ctx = malloc (sizeof (parser_t));
   json_t *json = parse_json (ctx, data);
   return json;
-}
+p}
 
 json_t *
 make_node (void)
