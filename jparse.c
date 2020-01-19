@@ -3,6 +3,11 @@
   ((c) <= '9' && (c) >= '0')
 #define json_is_alpha(c)			\
   ((c) <= 'z' && (c) >= 'a')
+
+char *TOKENS[] =
+  {"null", "false", "true", "object", "array",
+   "string", "number", "error", NULL};
+
 typedef struct parser parser_t;
 struct parser
 {
@@ -29,10 +34,12 @@ int peek (parser_t *ctx);
 json_object_t *make_object (void);
 json_value_t *make_value (void);
 json_t *make_node (void);
+json_t *make_error (void);
 json_t *json_decode (char *data);
 json_array_t *make_array (void);
 void free_object (json_object_t *object);
 void free_array (json_array_t *array);
+int json_is_error (json_t *node);
 
 json_t *
 json_decode (char *data)
@@ -50,15 +57,20 @@ json_free (json_t *json)
     return;
   json_object_t *object = NULL;
   json_array_t *array = NULL;
+#ifdef DEBUG
+  printf ("debug: [%p] removing '%s'\n", json, TOKENS[json->type]);
+#endif
   switch (json->type)
     {
     case JSON_NULL:
     case JSON_TRUE:
     case JSON_FALSE:
     case JSON_NUMBER:
+      free (json);
       break;
     case JSON_STRING:
       free (json->as.string);
+      free (json);
       break;
     case JSON_OBJECT:
       object = json->as.object;
@@ -69,7 +81,6 @@ json_free (json_t *json)
       free_array (array);
       break;
     }
-  free (json);
 }
 
 void
@@ -78,6 +89,7 @@ free_array (json_array_t *array)
   if (array != NULL)
     {
       free_array (array->next);
+      array->next = NULL;
       json_free (array->value);
       free (array);
     }
@@ -89,16 +101,35 @@ free_object (json_object_t *object)
   if (object != NULL)
     {
       free_object (object->next);
+      object->next = NULL;
       json_free (object->value);
+#ifdef DEBUG
+      printf ("debug: [%p] removing key '%s'\n", object, object->key);
+#endif
       free (object->key);
-      free (object);
     }
+}
+
+int
+json_is_error (json_t *node)
+{
+  return
+    node == NULL ||
+    node->type == JSON_ERROR;
 }
 
 json_t *
 make_node (void)
 {
   json_t *node = malloc (sizeof (json_t));
+  return node;
+}
+
+json_t *
+make_error (void)
+{
+  json_t *node = make_node ();
+  node->type = JSON_ERROR;
   return node;
 }
 
@@ -190,7 +221,7 @@ parse_value (parser_t *ctx)
       	  value->as.number = parse_number (ctx);
 	}
       else
-	return NULL;
+	return make_error ();
     }
   return value;
 }
@@ -251,12 +282,11 @@ parse_members (parser_t *ctx)
   json_t *memb = NULL;
   
   skip (ctx);
-  if ((memb = parse_value (ctx)) == NULL)
+  if (json_is_error (memb = parse_value (ctx)))
     {
-      json_array_t *error = make_array ();
-      error->value = make_node ();
-      error->value->type= JSON_ERROR;
-      return error;
+      json_t *error = make_error ();
+      arr->value = error;
+      return arr;
     }
   skip (ctx);
   
@@ -314,21 +344,37 @@ parse_element (parser_t *ctx)
   json_object_t *object = make_object ();
   /* key */
   skip (ctx);
-  if (advance (ctx) != '"')
-    return NULL;
+  if (peek (ctx) != '"')
+    {
+      free (object);
+      return NULL;
+    }
+
+  advance (ctx);
   char *key = parse_string (ctx);
 
   /* colon */
   skip (ctx);
   if (advance (ctx) != ':')
-    return NULL;
+    {
+      value = make_error ();
+      object->value = value;
+      return object;
+    }
 
   /* value */
   skip (ctx);
-  if ((value = parse_value (ctx)) == NULL)
-    return NULL;
+  if (json_is_error (value = parse_value (ctx)))
+    {
+      object->value = value;
+      return object;
+    }
 
   object->key = key;
+#ifdef DEBUG
+  printf ("debug: [%p] created object with key '%s'\n",
+	  object, object->key);
+#endif
   object->value = value;
 
   skip (ctx);
@@ -351,6 +397,15 @@ parse_elements (parser_t *ctx)
       advance (ctx); /* eat ',' */
       skip (ctx);
       current->next = parse_element (ctx);
+      if (current->next == NULL)
+	{
+	  object->value = make_error ();
+	  return object;
+	}
+#ifdef DEBUG
+      printf ("debug: [%p] parse_element returned address %p\n",
+	      current, current->next);
+#endif
       current = current->next;
       current->next = NULL;
       skip (ctx);
