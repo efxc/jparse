@@ -14,7 +14,9 @@ struct parser
   char *code;
   char *cursor;
   char *start;
-  
+
+  int error;
+  char *errmsg;
   json_t *json;
 };
 
@@ -34,7 +36,7 @@ int peek (parser_t *ctx);
 json_object_t *make_object (void);
 json_value_t *make_value (void);
 json_t *make_node (void);
-json_t *make_error (void);
+void make_error (parser_t *ctx, char *msg);
 json_t *json_decode (char *data);
 json_array_t *make_array (void);
 void free_object (json_object_t *object);
@@ -45,6 +47,8 @@ json_t *
 json_decode (char *data)
 {
   parser_t *ctx = malloc (sizeof (parser_t));
+  ctx->error = JSON_FALSE;
+  ctx->errmsg = NULL;
   json_t *json = parse_json (ctx, data);
   free (ctx);
   return json;
@@ -115,7 +119,7 @@ json_is_error (json_t *node)
 {
   return
     node == NULL ||
-    node->type == JSON_ERROR;
+    node->error == JSON_TRUE;
 }
 
 json_t *
@@ -125,12 +129,11 @@ make_node (void)
   return node;
 }
 
-json_t *
-make_error (void)
+void
+make_error (parser_t *ctx, char *msg)
 {
-  json_t *node = make_node ();
-  node->type = JSON_ERROR;
-  return node;
+  ctx->error = JSON_TRUE;
+  ctx->errmsg = msg;
 }
 
 json_object_t *
@@ -159,6 +162,12 @@ advance (parser_t *ctx)
   return *ctx->cursor++;
 }
 
+int
+end (parser_t *ctx)
+{
+  return peek (ctx) == '\0';
+}
+
 void
 skip (parser_t *ctx)
 {
@@ -181,12 +190,13 @@ parse_json (parser_t *ctx, char *data)
   ctx->json = make_node ();
   skip (ctx);
   
-  if ((ctx->json = parse_value (ctx)) == NULL)
-    {
-      free (ctx->json);
-      return NULL;
-    }
+  ctx->json = parse_value (ctx);
 
+  if (ctx->json == NULL)
+    ctx->json = make_node ();
+  
+  ctx->json->error = ctx->error;
+  ctx->json->errmsg = ctx->errmsg;
   skip (ctx);
   return ctx->json;
 }
@@ -221,7 +231,11 @@ parse_value (parser_t *ctx)
       	  value->as.number = parse_number (ctx);
 	}
       else
-	return make_error ();
+	{
+	  make_error (ctx, "expected '{', '[', '\"' or literal"
+			      " but got none of them");
+	  value = NULL;
+	}
     }
   return value;
 }
@@ -270,7 +284,11 @@ parse_array (parser_t *ctx)
   array = parse_members (ctx);
   skip (ctx);
   
-  advance (ctx); /* trailing ']' */
+  if (advance (ctx) != ']') /* trailing ']' */
+    {
+      make_error (ctx, "expected ']'");
+      array = NULL;
+    }
   return array;
 }
 
@@ -282,11 +300,15 @@ parse_members (parser_t *ctx)
   json_t *memb = NULL;
   
   skip (ctx);
+  if (peek (ctx) == ']') /* no elements */
+    {
+      arr->value = NULL;
+      return arr;
+    }
   if (json_is_error (memb = parse_value (ctx)))
     {
-      json_t *error = make_error ();
-      arr->value = error;
-      return arr;
+      make_error (ctx, "expected value");
+      return NULL;
     }
   skip (ctx);
   
@@ -318,7 +340,12 @@ parse_object (parser_t *ctx)
   skip (ctx);
 
   /* trailing '}' */
-  advance (ctx);
+  if (advance (ctx) != '}')
+    {
+      make_error (ctx, "unterminated object,"
+		  " expected '}'");
+      return NULL;
+    }
   return object;
 }
 
@@ -326,14 +353,16 @@ char *
 parse_string (parser_t *ctx)
 {
   ctx->start = ctx->cursor;
-  while (peek (ctx) != '"')
+  while (peek (ctx) != '"' && !end (ctx))
     advance (ctx);
   int len = ctx->cursor - ctx->start;
   char *lexeme = malloc (len + 1);
   strncpy (lexeme, ctx->start, len);
   lexeme[len] = '\0';
 
-  advance (ctx); /* trailing quote */
+  if (advance (ctx) != '"') /* trailing quote */
+    return NULL;
+  
   return lexeme;
 }
 
@@ -345,10 +374,7 @@ parse_element (parser_t *ctx)
   /* key */
   skip (ctx);
   if (peek (ctx) != '"')
-    {
-      free (object);
-      return NULL;
-    }
+    return NULL;
 
   advance (ctx);
   char *key = parse_string (ctx);
@@ -357,17 +383,16 @@ parse_element (parser_t *ctx)
   skip (ctx);
   if (advance (ctx) != ':')
     {
-      value = make_error ();
-      object->value = value;
-      return object;
+      make_error (ctx, "expected ':'");
+      return NULL;
     }
 
   /* value */
   skip (ctx);
   if (json_is_error (value = parse_value (ctx)))
     {
-      object->value = value;
-      return object;
+      make_error (ctx, "expected value, got none");
+      return NULL;
     }
 
   object->key = key;
@@ -399,8 +424,8 @@ parse_elements (parser_t *ctx)
       current->next = parse_element (ctx);
       if (current->next == NULL)
 	{
-	  object->value = make_error ();
-	  return object;
+	  make_error (ctx, "expected element");
+	  return NULL;
 	}
 #ifdef DEBUG
       printf ("debug: [%p] parse_element returned address %p\n",

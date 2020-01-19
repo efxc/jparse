@@ -27,6 +27,8 @@ enum json_type
 struct value
 {
   json_type_t type;
+  int error;
+  char *errmsg;
   union
   {
     json_object_t *object;
