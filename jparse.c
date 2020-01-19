@@ -16,7 +16,8 @@ struct parser
   char *start;
 
   int error;
-  char *errmsg;
+  char *reason;
+  
   json_t *json;
 };
 
@@ -34,25 +35,27 @@ void skip (parser_t *ctx);
 int advance (parser_t *ctx);
 int peek (parser_t *ctx);
 int end (parser_t *ctx);
+int is_whitespace (int c);
 json_object_t *make_object (void);
 json_value_t *make_value (void);
 json_t *make_node (void);
 void make_error (parser_t *ctx, char *msg);
-json_t *json_decode (char *data);
 json_array_t *make_array (void);
 void free_object (json_object_t *object);
 void free_array (json_array_t *array);
 int json_is_error (json_t *node);
 
-json_t *
+json_data_t *
 json_decode (char *data)
 {
   parser_t *ctx = malloc (sizeof (parser_t));
-  ctx->error = JSON_FALSE;
-  ctx->errmsg = NULL;
   json_t *json = parse_json (ctx, data);
+  json_data_t *decoded = malloc (sizeof (parser_t));
+  decoded->error = ctx->error;
+  decoded->reason = ctx->reason;
+  decoded->root = json;
   free (ctx);
-  return json;
+  return decoded;
 }
 
 void
@@ -115,14 +118,6 @@ free_object (json_object_t *object)
     }
 }
 
-int
-json_is_error (json_t *node)
-{
-  return
-    node == NULL ||
-    node->error == JSON_TRUE;
-}
-
 json_t *
 make_node (void)
 {
@@ -134,7 +129,7 @@ void
 make_error (parser_t *ctx, char *msg)
 {
   ctx->error = JSON_TRUE;
-  ctx->errmsg = msg;
+  ctx->reason = msg;
 }
 
 json_object_t *
@@ -172,17 +167,18 @@ end (parser_t *ctx)
   return peek (ctx) == '\0';
 }
 
+int
+is_whitespace (int c)
+{
+  return c == ' ' || c == '\t' ||
+    c == '\r' || c == '\n';
+}
+
 void
 skip (parser_t *ctx)
 {
-  char c = peek (ctx);
-  while ((c == '\t' || c == '\r' ||
-	  c == ' ' || c == '\n') &&
-	 c != '\0')
-    {
-      advance (ctx);
-      c = peek (ctx);
-    }
+  while (is_whitespace (peek (ctx)))
+    advance (ctx);
 }
 
 json_t *
@@ -191,27 +187,34 @@ parse_json (parser_t *ctx, char *data)
   ctx->code = data;
   ctx->cursor = ctx->code;
   ctx->start = ctx->code;
+  ctx->error = JSON_FALSE;
+  ctx->reason = NULL;
 
-  ctx->json = make_node ();
+  ctx->json = make_node (); /* root node */
+
+  /* skip the whitespace, parse value */
   skip (ctx);
-  
   ctx->json = parse_value (ctx);
-
-  if (ctx->json == NULL)
-    ctx->json = make_node ();
-  
-  ctx->json->error = ctx->error;
-  ctx->json->errmsg = ctx->errmsg;
   skip (ctx);
+
+  /* if we haven't reached the end, */
+  if (!end (ctx))
+    make_error (ctx, "invalid json value");
+
+  /* if no value, */
+  if (ctx->json == NULL)
+    make_error (ctx, "required value, got none");
+  
   return ctx->json;
 }
 
 json_t *
 parse_value (parser_t *ctx)
 {
+  /* for capturing lexemes, */
   ctx->start = ctx->cursor;
   char c = advance (ctx);
-  json_t *value = make_node ();
+  json_t *value = make_node (); /* allocate area for value */
 
   switch (c)
     {
@@ -238,7 +241,8 @@ parse_value (parser_t *ctx)
       else
 	{
 	  make_error (ctx, "expected '{', '[', '\"' or literal"
-			      " but got none of them");
+			      " but got none");
+	  free (value);
 	  value = NULL;
 	}
     }
@@ -277,7 +281,11 @@ parse_logic (parser_t *ctx)
   else if (strncmp (ctx->start, "null", 4) == 0)
     return JSON_NULL;
   else
-    return JSON_ERROR;
+    {
+      make_error (ctx, "unknown value, expected 'true', 'false'"
+		  " or 'null'");
+      return JSON_ERROR;
+    }
 }
 
 json_array_t *
@@ -285,6 +293,7 @@ parse_array (parser_t *ctx)
 {
   json_array_t *array = NULL;
 
+  /* skip the whitespace and parse members */
   skip (ctx);
   array = parse_members (ctx);
   skip (ctx);
@@ -310,25 +319,31 @@ parse_members (parser_t *ctx)
       arr->value = NULL;
       return arr;
     }
-  if (json_is_error (memb = parse_value (ctx)))
+  if ((memb = parse_value (ctx)) == NULL)
     {
       make_error (ctx, "expected value");
       return NULL;
     }
-  skip (ctx);
   
   arr->value = memb;
   arr->next = NULL;
   curr = arr;
-  
+
+  skip (ctx);
   while (peek (ctx) == ',')
     {
-      advance (ctx);
+      advance (ctx); /* eat ',' */
       skip (ctx);
+      /* make space for next element, */
       curr->next = make_array ();
       curr = curr->next;
       curr->value = parse_value (ctx);
-      curr->next = NULL; /* terminate linked list */
+      if (curr->value == NULL)
+	{
+	  make_error (ctx, "expected array item");
+	  return NULL;
+	}
+      curr->next = NULL; /* terminate the list */
       skip (ctx);
     }
   skip (ctx);
@@ -340,6 +355,7 @@ parse_object (parser_t *ctx)
 {
   json_object_t *object = NULL;
 
+  /* skip whitespace, parse the object */
   skip (ctx);
   object = parse_elements (ctx);
   skip (ctx);
@@ -376,6 +392,7 @@ parse_element (parser_t *ctx)
 {
   json_t *value = NULL;
   json_object_t *object = make_object ();
+  
   /* key */
   skip (ctx);
   if (peek (ctx) != '"')
@@ -383,6 +400,11 @@ parse_element (parser_t *ctx)
 
   advance (ctx);
   char *key = parse_string (ctx);
+  if (key == NULL)
+    {
+      make_error (ctx, "expected key");
+      return NULL;
+    }
 
   /* colon */
   skip (ctx);
@@ -394,17 +416,13 @@ parse_element (parser_t *ctx)
 
   /* value */
   skip (ctx);
-  if (json_is_error (value = parse_value (ctx)))
+  if ((value = parse_value (ctx)) == NULL)
     {
-      make_error (ctx, "expected value, got none");
+      make_error (ctx, "expected value");
       return NULL;
     }
 
   object->key = key;
-#ifdef DEBUG
-  printf ("debug: [%p] created object with key '%s'\n",
-	  object, object->key);
-#endif
   object->value = value;
 
   skip (ctx);
@@ -422,22 +440,22 @@ parse_elements (parser_t *ctx)
   
   skip (ctx);
   current = object;
+
+  /* while there are more elements, */
   while (peek (ctx) == ',')
     {
       advance (ctx); /* eat ',' */
       skip (ctx);
       current->next = parse_element (ctx);
+
       if (current->next == NULL)
 	{
 	  make_error (ctx, "expected element");
 	  return NULL;
 	}
-#ifdef DEBUG
-      printf ("debug: [%p] parse_element returned address %p\n",
-	      current, current->next);
-#endif
+      
       current = current->next;
-      current->next = NULL;
+      current->next = NULL; /* terminate the list */
       skip (ctx);
     }
   return object;

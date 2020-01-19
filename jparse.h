@@ -11,9 +11,17 @@ typedef struct value json_value_t;
 typedef struct object json_object_t;
 typedef struct array json_array_t;
 
+typedef struct
+{
+  json_t *root;
+
+  int error;
+  char *reason;
+} json_data_t;
+
 enum json_type
   {
-   JSON_NULL = 0,
+   JSON_NULL = -1,
    JSON_FALSE,
    JSON_TRUE,
    JSON_OBJECT,
@@ -27,8 +35,6 @@ enum json_type
 struct value
 {
   json_type_t type;
-  int error;
-  char *errmsg;
   union
   {
     json_object_t *object;
@@ -51,7 +57,7 @@ struct array
   struct array *next;
 };
 
-json_t *json_decode (char *data);
+json_data_t *json_decode (char *data);
 void json_free (json_t *json);
 
 #endif /* HAVE_JPARSER_H */

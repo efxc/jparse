@@ -1,14 +1,21 @@
 {
-  "name": "test.json",
-  "type": "application/json",
-  "extensions": [
-    "js",
-    "json"
-  ],
-  "cool": false,
-  "free": true,
-  "authors": {
-    "efxc": "github/efxc",
-    "efecx": "github/efecx"
+  "name": "efe",
+  "surname": "can",
+  "options": {
+    "verbose": true,
+    "private": false,
+    "nickname": "efec",
+    "troops": [
+      "Soldier",
+      "War Machine"
+    ],
+    "internal": {
+      "fullscreen": false,
+      "data": null,
+      "saves": [
+        "save0.gz",
+        "save1.gz"
+      ]
+    }
   }
 }
