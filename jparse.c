@@ -230,6 +230,10 @@ parse_value (parser_t *ctx)
       value->type = JSON_STRING;
       value->as.string = parse_string (ctx);
       break;
+    case '-':
+      value->type = JSON_NUMBER;
+      value->as.number = parse_number (ctx);
+      break;
     default:
       if (json_is_alpha (c))
 	value->type = parse_logic (ctx);

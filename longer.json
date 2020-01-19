@@ -1,0 +1,43 @@
+{
+  "_id": "5e249baee144a7c4ebd191fa",
+  "index": 2,
+  "guid": "a67c916f-352e-45ce-8ba0-05c5c42d5060",
+  "isActive": true,
+  "balance": "$3,183.86",
+  "picture": "http://placehold.it/32x32",
+  "age": 26,
+  "eyeColor": "blue",
+  "name": "Teresa Jefferson",
+  "gender": "female",
+  "company": "DECRATEX",
+  "email": "teresajefferson@decratex.com",
+  "phone": "+1 (876) 575-3252",
+  "address": "323 Garden Place, Morgandale, Wyoming, 936",
+  "latitude": 33.025,
+  "longitude": 41.816,
+  "tags": [
+    "aliqua",
+    "dolor",
+    "aute",
+    "do",
+    "laboris",
+    "sunt",
+    "exercitation"
+  ],
+  "friends": [
+    {
+      "id": 0,
+      "name": "Barrera Simon"
+    },
+    {
+      "id": 1,
+      "name": "Reva Harper"
+    },
+    {
+      "id": 2,
+      "name": "Terry Schneider"
+    }
+  ],
+  "greeting": "Hello, Teresa Jefferson! You have 2 unread messages.",
+  "favoriteFruit": "strawberry"
+}

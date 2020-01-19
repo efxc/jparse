@@ -84,7 +84,7 @@ print_json (json_t *json)
 int
 main (void)
 {
-  char source[1000];
+  char source[10000];
   int nread = 0;
   while (!feof (stdin))
     nread += fread (source, 1, 999, stdin);
