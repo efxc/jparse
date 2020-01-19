@@ -1,2 +1,7 @@
 # jparse
-JSON parser in ~300 lines of code.
+JSON parser.
+- [ ] TODO
+  - [ ] add unicode support
+  - [ ] add support for escape sequences
+  - [ ] fix memory leaks
+  - [ ] fix bugs
