@@ -94,28 +94,48 @@ json_free (json_t *json)
 void
 free_array (json_array_t *array)
 {
-  if (array != NULL)
+  json_array_t *current, *prev;
+  current = array;
+  while (current != NULL)
     {
-      free_array (array->next);
-      array->next = NULL;
-      json_free (array->value);
-      free (array);
+      prev = current;
+      /* free the value */
+      json_free (current->value);
+
+      current = current->next;
+      free (prev);
     }
 }
 
 void
 free_object (json_object_t *object)
 {
-  if (object != NULL)
+  json_object_t *current, *prev;
+  current = object;
+  while (current != NULL)
     {
-      free_object (object->next);
-      object->next = NULL;
-      json_free (object->value);
-#ifdef DEBUG
-      printf ("debug: [%p] removing key '%s'\n", object, object->key);
-#endif
-      free (object->key);
+      prev = current;
+      /* free the key and the value */
+      json_free (current->value);
+      free (current->key);
+      
+      current = current->next;
+      free (prev);
     }
+}
+
+json_t *
+json_find (json_object_t *object, const char *key)
+{
+  json_object_t *current = object;
+  json_t *found = NULL;
+  while (current != NULL)
+    {
+      if (strcmp (key, current->key) == 0)
+	found = current->value;
+      current = current->next;
+    }
+  return found;
 }
 
 json_t *
