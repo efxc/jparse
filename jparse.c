@@ -33,6 +33,7 @@ json_type_t parse_logic (parser_t *ctx);
 void skip (parser_t *ctx);
 int advance (parser_t *ctx);
 int peek (parser_t *ctx);
+int end (parser_t *ctx);
 json_object_t *make_object (void);
 json_value_t *make_value (void);
 json_t *make_node (void);
@@ -159,7 +160,10 @@ peek (parser_t *ctx)
 int
 advance (parser_t *ctx)
 {
-  return *ctx->cursor++;
+  if (!end (ctx))
+    return *ctx->cursor++;
+
+  return '\0';
 }
 
 int
@@ -172,8 +176,9 @@ void
 skip (parser_t *ctx)
 {
   char c = peek (ctx);
-  while (c == '\t' || c == '\r' ||
-	 c == ' ' || c == '\n')
+  while ((c == '\t' || c == '\r' ||
+	  c == ' ' || c == '\n') &&
+	 c != '\0')
     {
       advance (ctx);
       c = peek (ctx);
