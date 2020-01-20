@@ -63,8 +63,6 @@ json_free (json_t *json)
 {
   if (json == NULL)
     return;
-  json_object_t *object = NULL;
-  json_array_t *array = NULL;
 #ifdef DEBUG
   printf ("debug: [%p] removing '%s'\n", json, TOKENS[json->type]);
 #endif
@@ -74,21 +72,18 @@ json_free (json_t *json)
     case JSON_TRUE:
     case JSON_FALSE:
     case JSON_NUMBER:
-      free (json);
       break;
     case JSON_STRING:
       free (json->as.string);
-      free (json);
       break;
     case JSON_OBJECT:
-      object = json->as.object;
-      free_object (object);
+      free_object (json->as.object);
       break;
     case JSON_ARRAY:
-      array = json->as.array;
-      free_array (array);
+      free_array (json->as.array);
       break;
     }
+  free (json);
 }
 
 void
@@ -142,6 +137,7 @@ json_t *
 make_node (void)
 {
   json_t *node = malloc (sizeof (json_t));
+  node->type = JSON_NULL;
   return node;
 }
 
@@ -156,6 +152,9 @@ json_object_t *
 make_object (void)
 {
   json_object_t *object = malloc (sizeof (json_object_t));
+  object->key = NULL;
+  object->value = NULL;
+  object->next = NULL;
   return object;
 }
 
@@ -163,6 +162,8 @@ json_array_t *
 make_array (void)
 {
   json_array_t *array = malloc (sizeof (json_array_t));
+  array->value = NULL;
+  array->next = NULL;
   return array;
 }
 
